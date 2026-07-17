@@ -218,6 +218,34 @@ main{padding:22px 24px 60px;max-width:1320px;margin:0 auto;}
 .row-aging.heat-none{background:var(--surface-2);color:var(--text-dim);}
 .row-vendor-tag{font-size:11px;color:var(--brand-dark);font-weight:700;background:var(--brand-soft);padding:2px 8px;border-radius:8px;}
 
+/* ---------- Tramo de mora (DPD bucket) ---------- */
+.tramo-badge{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 10px;border-radius:20px;font-size:10.5px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.3px;white-space:nowrap;
+}
+.tramo-badge::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;}
+.tramo-badge.tramo-al-dia{background:rgba(0,168,111,.12);color:var(--ok);}
+.tramo-badge.tramo-temprana{background:rgba(224,162,51,.14);color:#a06a17;}
+.tramo-badge.tramo-intermedia{background:rgba(224,162,51,.22);color:var(--warn);}
+.tramo-badge.tramo-tardia{background:rgba(225,75,79,.16);color:var(--danger-deep);}
+.tramo-badge.tramo-sin-datos{background:var(--surface-2);color:var(--text-dim);}
+
+/* ---------- Botón de acción rápida: Cobranza por WhatsApp ---------- */
+.btn-whatsapp{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 12px;border-radius:8px;font-size:11.5px;font-weight:700;
+  background:#25D366;color:#fff;flex-shrink:0;
+  transition:filter .15s, transform .1s;
+}
+.btn-whatsapp:hover{filter:brightness(1.05);}
+.btn-whatsapp:active{transform:scale(.97);}
+.btn-whatsapp:disabled{background:var(--border);color:var(--text-dim);cursor:not-allowed;}
+.btn-whatsapp svg{width:14px;height:14px;flex-shrink:0;}
+.btn-whatsapp.icon-only{padding:8px;border-radius:50%;}
+.btn-whatsapp.icon-only span{display:none;}
+.modal-actions{display:flex;align-items:center;gap:10px;}
+
 /* ---------- MODAL ---------- */
 .overlay{
   display:none;position:fixed;inset:0;background:rgba(6,20,15,.55);backdrop-filter:blur(4px);
@@ -459,7 +487,13 @@ table.vendor-table{width:100%;border-collapse:collapse;}
         <h2 id="modalNombre">Cliente</h2>
         <div class="sub" id="modalTelefono"></div>
       </div>
-      <button class="modal-close" id="btnCloseModal">✕</button>
+      <div class="modal-actions">
+        <button class="btn-whatsapp" id="btnWhatsappModal" style="display:none;" onclick="enviarCobranzaWhatsAppModal()" title="Enviar recordatorio de cobranza por WhatsApp">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2c-5.5 0-9.96 4.46-9.96 9.96 0 1.76.46 3.45 1.33 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.5 0 9.96-4.46 9.96-9.96S17.54 2 12.04 2zm5.85 14.1c-.25.7-1.45 1.33-1.99 1.4-.51.07-1.13.1-1.82-.12-.42-.13-.96-.31-1.65-.6-2.9-1.25-4.8-4.16-4.94-4.35-.14-.19-1.18-1.57-1.18-3 0-1.42.75-2.12 1.02-2.41.27-.29.58-.36.78-.36h.55c.18 0 .41-.02.64.5.25.56.83 1.94.9 2.08.07.14.12.31.02.5-.09.19-.14.31-.28.48-.14.16-.29.36-.42.49-.14.14-.28.29-.12.56.16.28.71 1.18 1.53 1.92 1.05.94 1.94 1.24 2.21 1.38.28.14.44.12.6-.07.16-.19.68-.79.87-1.06.18-.28.36-.23.6-.14.25.09 1.58.75 1.85.88.28.14.46.2.53.32.07.12.07.7-.18 1.4z"/></svg>
+          <span>Cobranza</span>
+        </button>
+        <button class="modal-close" id="btnCloseModal">✕</button>
+      </div>
     </div>
     <div class="tabs">
       <div class="tab active" data-tab="cuotas">Cuotas</div>
@@ -578,6 +612,104 @@ function diasAtrasoDe(c){
     }
   }
   return null;
+}
+
+/* ---------------------------------------------------------------------
+ * COBRANZA VÍA WHATSAPP — Botón de Acción Rápida
+ * ------------------------------------------------------------------- */
+
+/* Lookup vivo de clientes actualmente pintados en pantalla (vendedor o
+   admin), para que el botón de la tarjeta pueda resolver los datos sin
+   volver a llamar al backend. Se repuebla en cada renderClientRows(). */
+let clientesIndexados = {};
+
+/**
+ * Limpia un teléfono guardado en formato local paraguayo y antepone el
+ * código de país (595). Soporta variantes con espacios, guiones,
+ * paréntesis, "+" y ceros a la izquierda (0976307394 / 976307394 / etc).
+ * Devuelve null si el resultado no parece un número válido.
+ */
+function formatearTelefonoPY(telefonoRaw){
+  if(!telefonoRaw) return null;
+  let limpio = String(telefonoRaw).replace(/\D/g, ''); // deja solo dígitos
+  limpio = limpio.replace(/^0+/, '');                  // quita ceros a la izquierda
+  if(!limpio) return null;
+
+  // Si ya viene con el código de país incluido, lo respetamos tal cual.
+  if(limpio.startsWith('595')){
+    return limpio.length >= 11 ? limpio : null;
+  }
+  const conCodigo = '595' + limpio;
+  // Un celular paraguayo válido queda en ~12 dígitos (595 + 9 dígitos).
+  return conCodigo.length >= 11 && conCodigo.length <= 13 ? conCodigo : null;
+}
+
+/* 'YYYY-MM-DD' -> 'DD/MM/AAAA' */
+function fmtFechaDDMMYYYY(fechaISO){
+  if(!fechaISO) return null;
+  const partes = String(fechaISO).slice(0,10).split('-');
+  if(partes.length !== 3) return null;
+  const [y, m, d] = partes;
+  return `${d}/${m}/${y}`;
+}
+
+/* Tramo de mora (DPD bucket) para el badge de riesgo de la tarjeta */
+function tramoMoraDe(dias){
+  if(dias == null) return { clase: 'tramo-sin-datos', label: 'Sin datos' };
+  if(dias <= 0) return { clase: 'tramo-al-dia', label: 'Al día' };
+  if(dias <= 30) return { clase: 'tramo-temprana', label: 'Mora temprana' };
+  if(dias <= 60) return { clase: 'tramo-intermedia', label: 'Mora intermedia' };
+  return { clase: 'tramo-tardia', label: 'Mora tardía' };
+}
+
+/**
+ * Construye el mensaje de cobranza en base a los datos dinámicos del
+ * cliente en mora y del vendedor/usuario en sesión. Recibe un objeto
+ * normalizado: { nombre, cuotasVencidas, montoVencido, fechaVencidaMasAntigua }
+ */
+function construirMensajeCobranza(datos){
+  const cliente_nombre = datos.nombre || 'cliente';
+  const vendedor_nombre = (session && session.nombre) ? session.nombre : 'Negofin';
+  const cuotas_vencidas = Number(datos.cuotasVencidas) || 0;
+  const fecha_vencimiento = fmtFechaDDMMYYYY(datos.fechaVencidaMasAntigua) || 'a la brevedad';
+  const monto_total = (Number(datos.montoVencido) || 0).toLocaleString('es-PY');
+
+  return `Hola, ${cliente_nombre}. Le saluda ${vendedor_nombre} de la empresa Negofin. ` +
+    `Le comunicamos que actualmente cuenta con ${cuotas_vencidas} cuota${cuotas_vencidas === 1 ? '' : 's'} vencida${cuotas_vencidas === 1 ? '' : 's'} ` +
+    `(la más antigua el ${fecha_vencimiento}) por un monto total de Gs. ${monto_total}. ` +
+    `Favor comunicarse lo antes posible para regularizar su situación y evitar inconvenientes con su historial crediticio. Muchas gracias.`;
+}
+
+/** Abre la conversación de WhatsApp con el mensaje ya armado */
+function abrirWhatsAppCobranza(datos){
+  const telefono = formatearTelefonoPY(datos.telefono);
+  if(!telefono){
+    showToast('Este cliente no tiene un teléfono válido registrado');
+    return;
+  }
+  const mensaje = construirMensajeCobranza(datos);
+  const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
+  window.open(url, '_blank', 'noopener');
+}
+
+/* Botón de la tarjeta de cliente (lista de vendedor o admin) */
+function enviarCobranzaWhatsApp(idCliente){
+  const c = clientesIndexados[String(idCliente)];
+  if(!c){ showToast('No se encontraron datos del cliente'); return; }
+  abrirWhatsAppCobranza({
+    nombre: c.nombre,
+    telefono: c.telefono,
+    cuotasVencidas: c.cuotasVencidas,
+    montoVencido: c.montoVencido,
+    fechaVencidaMasAntigua: c.fechaVencidaMasAntigua
+  });
+}
+
+/* Botón del encabezado del modal de detalle de cliente */
+let clienteActivoStats = null;
+function enviarCobranzaWhatsAppModal(){
+  if(!clienteActivoStats){ showToast('Todavía se están cargando los datos del cliente'); return; }
+  abrirWhatsAppCobranza(clienteActivoStats);
 }
 
 function heatClassDe(dias){
@@ -800,8 +932,11 @@ function renderClientRows(container, lista, opts){
   }
   let rankVencidos = 0;
   container.innerHTML = lista.map(c => {
+    clientesIndexados[String(c.id)] = c; // repuebla el lookup para el botón de WhatsApp
+
     const dias = diasAtrasoDe(c);
     const heat = heatClassDe(dias);
+    const tramo = tramoMoraDe(dias);
     let rankBadge = '';
     if(opts.showRank && dias != null && dias > 0){
       rankVencidos++;
@@ -810,6 +945,14 @@ function renderClientRows(container, lista, opts){
     const vendorTag = (opts.showVendedor && c.vendedor) ? `<span class="row-vendor-tag">${escapeHtml(c.vendedor)}</span>` : '';
     const montoStat = (typeof c.montoVencido === 'number')
       ? `<div class="stat"><span class="stat-label">Monto vencido</span><b class="mono danger-text">${fmtMoney(c.montoVencido)}</b></div>` : '';
+    const saldoStat = (typeof c.montoPendiente === 'number')
+      ? `<div class="stat"><span class="stat-label">Saldo total</span><b class="mono">${fmtMoney(c.montoPendiente)}</b></div>` : '';
+    const whatsappBtn = (dias != null && dias > 0)
+      ? `<button class="btn-whatsapp" onclick="event.stopPropagation(); enviarCobranzaWhatsApp('${c.id}')" title="Enviar recordatorio de cobranza por WhatsApp">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2c-5.5 0-9.96 4.46-9.96 9.96 0 1.76.46 3.45 1.33 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.5 0 9.96-4.46 9.96-9.96S17.54 2 12.04 2zm5.85 14.1c-.25.7-1.45 1.33-1.99 1.4-.51.07-1.13.1-1.82-.12-.42-.13-.96-.31-1.65-.6-2.9-1.25-4.8-4.16-4.94-4.35-.14-.19-1.18-1.57-1.18-3 0-1.42.75-2.12 1.02-2.41.27-.29.58-.36.78-.36h.55c.18 0 .41-.02.64.5.25.56.83 1.94.9 2.08.07.14.12.31.02.5-.09.19-.14.31-.28.48-.14.16-.29.36-.42.49-.14.14-.28.29-.12.56.16.28.71 1.18 1.53 1.92 1.05.94 1.94 1.24 2.21 1.38.28.14.44.12.6-.07.16-.19.68-.79.87-1.06.18-.28.36-.23.6-.14.25.09 1.58.75 1.85.88.28.14.46.2.53.32.07.12.07.7-.18 1.4z"/></svg>
+          <span>WhatsApp</span>
+        </button>`
+      : '';
     return `
     <div class="client-row" onclick="abrirCliente('${c.id}')">
       <div class="row-heat ${heat}"></div>
@@ -817,7 +960,7 @@ function renderClientRows(container, lista, opts){
         ${rankBadge}
         <div class="row-main">
           <div>
-            <div class="row-name"><span class="status-dot ${c.estado}"></span>${escapeHtml(c.nombre)}</div>
+            <div class="row-name"><span class="status-dot ${c.estado}"></span>${escapeHtml(c.nombre)}<span class="tramo-badge ${tramo.clase}" style="margin-left:8px;">${tramo.label}</span></div>
             <div class="row-sub">${c.telefono ? escapeHtml(c.telefono) : 'Sin teléfono'} ${vendorTag}</div>
           </div>
         </div>
@@ -825,8 +968,10 @@ function renderClientRows(container, lista, opts){
           <div class="stat"><span class="stat-label">Vencidas</span><b class="mono">${c.cuotasVencidas||0}</b></div>
           <div class="stat"><span class="stat-label">Al día</span><b class="mono">${c.cuotasPendientes||0}</b></div>
           ${montoStat}
+          ${saldoStat}
         </div>
         <div class="row-aging ${heat}">${fmtAging(dias)}</div>
+        ${whatsappBtn}
       </div>
     </div>`;
   }).join('');
@@ -1005,6 +1150,31 @@ async function abrirCliente(idCliente){
 
   // Créditos con sus cuotas agrupadas
   const hoy = new Date().toISOString().slice(0,10);
+
+  /* Recalcula cuotas vencidas / monto vencido / fecha más antigua a
+     partir del detalle de créditos, para alimentar el botón de
+     cobranza por WhatsApp del encabezado del modal. */
+  let cuotasVencidasModal = 0, montoVencidoModal = 0, fechaMasAntiguaModal = null;
+  resp.creditos.forEach(cr => {
+    cr.cuotas.forEach(q => {
+      if(q.estado !== 'pagada' && q.fecha_vencimiento < hoy){
+        cuotasVencidasModal++;
+        montoVencidoModal += Number(q.monto) || 0;
+        if(!fechaMasAntiguaModal || q.fecha_vencimiento < fechaMasAntiguaModal){
+          fechaMasAntiguaModal = q.fecha_vencimiento;
+        }
+      }
+    });
+  });
+  clienteActivoStats = {
+    nombre: resp.cliente.nombre,
+    telefono: resp.cliente.telefono,
+    cuotasVencidas: cuotasVencidasModal,
+    montoVencido: montoVencidoModal,
+    fechaVencidaMasAntigua: fechaMasAntiguaModal
+  };
+  const btnWhatsappModal = document.getElementById('btnWhatsappModal');
+  btnWhatsappModal.style.display = cuotasVencidasModal > 0 ? 'inline-flex' : 'none';
   document.getElementById('panel-cuotas').innerHTML = resp.creditos.length ? resp.creditos.map(cr => {
     const filasCuotas = cr.cuotas.length ? cr.cuotas.map(q => {
       const vencida = q.estado !== 'pagada' && q.fecha_vencimiento < hoy;
