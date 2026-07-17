@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cartera+ | Gestión Preventiva de Créditos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a1120;
+  --surface:#111b2e;
+  --surface-2:#16233a;
+  --border:#223250;
+  --text:#e8edf7;
+  --text-dim:#8fa0bd;
+  --brand:#2dd4bf;
+  --brand-dim:#134e4a;
+  --ok:#22c55e;
+  --warn:#f5a524;
+  --danger:#ef4444;
+  --radius:14px;
+  font-family:'Inter',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+  background:radial-gradient(1200px 600px at 100% -10%, #10233a 0%, var(--bg) 60%);
+  color:var(--text);
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,.display{font-family:'Manrope',sans-serif;}
+.mono{font-family:'JetBrains Mono',monospace;}
+button{font-family:inherit;cursor:pointer;border:none;}
+input,select,textarea{font-family:inherit;}
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:8px;}
+
+/* ---------- LOGIN ---------- */
+#loginScreen{
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  padding:24px;
+}
+.login-card{
+  width:100%;max-width:380px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:36px 32px;
+  box-shadow:0 20px 60px -20px rgba(0,0,0,.6);
+}
+.login-brand{display:flex;align-items:center;gap:10px;margin-bottom:28px;}
+.login-brand .dot{width:12px;height:12px;border-radius:50%;background:var(--brand);box-shadow:0 0 12px var(--brand);}
+.login-brand span{font-family:'Manrope';font-weight:800;font-size:20px;letter-spacing:.3px;}
+.login-brand small{display:block;color:var(--text-dim);font-size:12px;margin-top:2px;}
+.field{margin-bottom:16px;}
+.field label{display:block;font-size:12px;color:var(--text-dim);margin-bottom:6px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;}
+.field input{
+  width:100%;padding:12px 14px;background:var(--surface-2);
+  border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;
+  transition:border-color .15s;
+}
+.field input:focus{outline:none;border-color:var(--brand);}
+.btn-primary{
+  width:100%;padding:13px;background:var(--brand);color:#03201c;
+  border-radius:10px;font-weight:700;font-size:14px;margin-top:8px;
+  transition:filter .15s, transform .1s;
+}
+.btn-primary:hover{filter:brightness(1.08);}
+.btn-primary:active{transform:scale(.98);}
+.login-error{
+  background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#fca5a5;
+  padding:10px 12px;border-radius:8px;font-size:13px;margin-bottom:16px;display:none;
+}
+
+/* ---------- APP SHELL ---------- */
+#app{display:none;min-height:100vh;}
+.topbar{
+  position:sticky;top:0;z-index:20;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 24px;background:rgba(10,17,32,.85);backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--border);
+}
+.topbar .brand{display:flex;align-items:center;gap:10px;}
+.topbar .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--brand);box-shadow:0 0 10px var(--brand);}
+.topbar .brand span{font-family:'Manrope';font-weight:800;font-size:17px;}
+.topbar .user{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--text-dim);}
+.topbar .user b{color:var(--text);}
+.btn-logout{
+  padding:8px 14px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:8px;color:var(--text-dim);font-size:13px;font-weight:600;
+}
+.btn-logout:hover{color:var(--text);border-color:var(--danger);}
+
+main{padding:24px;max-width:1280px;margin:0 auto;}
+.section-title{font-size:13px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.6px;margin:28px 0 14px;}
+.section-title:first-child{margin-top:0;}
+
+/* ---------- KPI CARDS ---------- */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;}
+.kpi-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:18px;border-left:3px solid var(--border);cursor:pointer;
+  transition:transform .15s, border-color .15s;
+}
+.kpi-card:hover{transform:translateY(-2px);}
+.kpi-card.active{border-color:var(--brand);}
+.kpi-card .label{font-size:12px;color:var(--text-dim);font-weight:600;text-transform:uppercase;letter-spacing:.4px;}
+.kpi-card .value{font-family:'JetBrains Mono';font-size:32px;font-weight:700;margin-top:8px;}
+.kpi-card.c-today{border-left-color:var(--warn);}
+.kpi-card.c-today .value{color:var(--warn);}
+.kpi-card.c-soon{border-left-color:#60a5fa;}
+.kpi-card.c-soon .value{color:#60a5fa;}
+.kpi-card.c-overdue{border-left-color:var(--danger);}
+.kpi-card.c-overdue .value{color:var(--danger);}
+.kpi-card.c-clients{border-left-color:var(--brand);}
+.kpi-card.c-clients .value{color:var(--brand);}
+
+/* Risk gauge (signature element) */
+.risk-panel{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:20px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;
+}
+.gauge{width:120px;height:120px;position:relative;flex-shrink:0;}
+.gauge svg{transform:rotate(-90deg);}
+.gauge-value{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-family:'JetBrains Mono';font-size:22px;font-weight:700;}
+.risk-panel .info h3{font-size:15px;margin-bottom:4px;}
+.risk-panel .info p{font-size:13px;color:var(--text-dim);max-width:420px;line-height:1.5;}
+
+/* ---------- CLIENT LIST ---------- */
+.filter-bar{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+.filter-bar input{
+  flex:1;min-width:200px;padding:10px 14px;background:var(--surface);
+  border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;
+}
+.chip{padding:8px 14px;border-radius:20px;background:var(--surface);border:1px solid var(--border);
+  font-size:13px;font-weight:600;color:var(--text-dim);}
+.chip.active{background:var(--brand-dim);border-color:var(--brand);color:var(--brand);}
+
+.client-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;}
+.client-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;
+  transition:border-color .15s, transform .15s;
+}
+.client-card:hover{border-color:var(--brand);transform:translateY(-2px);}
+.client-card .name{font-weight:700;font-size:15px;margin-bottom:4px;}
+.client-card .phone{font-size:12px;color:var(--text-dim);margin-bottom:12px;}
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;}
+.status-dot.vencido{background:var(--danger);}
+.status-dot.al_dia{background:var(--ok);}
+.status-dot.sin_saldo{background:var(--text-dim);}
+.client-card .stat-row{display:flex;justify-content:space-between;font-size:12px;color:var(--text-dim);}
+.client-card .stat-row b{color:var(--text);font-family:'JetBrains Mono';}
+
+/* ---------- MODAL ---------- */
+.overlay{
+  display:none;position:fixed;inset:0;background:rgba(4,8,16,.7);backdrop-filter:blur(4px);
+  z-index:100;align-items:flex-start;justify-content:center;padding:24px;overflow-y:auto;
+}
+.overlay.open{display:flex;}
+.modal{
+  width:100%;max-width:640px;background:var(--surface);border:1px solid var(--border);
+  border-radius:16px;margin-top:24px;overflow:hidden;
+}
+.modal-head{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+.modal-head h2{font-size:18px;}
+.modal-head .sub{font-size:12px;color:var(--text-dim);margin-top:2px;}
+.modal-close{width:32px;height:32px;border-radius:8px;background:var(--surface-2);color:var(--text-dim);font-size:16px;}
+.modal-close:hover{color:var(--text);}
+.tabs{display:flex;border-bottom:1px solid var(--border);}
+.tab{flex:1;padding:12px;text-align:center;font-size:13px;font-weight:600;color:var(--text-dim);border-bottom:2px solid transparent;}
+.tab.active{color:var(--brand);border-color:var(--brand);}
+.tab-content{padding:20px 24px;max-height:50vh;overflow-y:auto;}
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
+
+.cuota-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);}
+.cuota-row:last-child{border-bottom:none;}
+.cuota-row .left{font-size:13px;}
+.cuota-row .left b{font-family:'JetBrains Mono';}
+.badge{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;}
+.badge.pendiente{background:rgba(245,165,36,.15);color:var(--warn);}
+.badge.pagada{background:rgba(34,197,94,.15);color:var(--ok);}
+.badge.vencida{background:rgba(239,68,68,.15);color:var(--danger);}
+.btn-mini{padding:6px 10px;font-size:11px;font-weight:700;background:var(--brand-dim);color:var(--brand);border-radius:6px;}
+
+.interaccion-item{padding:12px 0;border-bottom:1px solid var(--border);}
+.interaccion-item:last-child{border-bottom:none;}
+.interaccion-item .meta{display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-bottom:4px;}
+.interaccion-item .tipo{font-weight:700;color:var(--brand);}
+.interaccion-item .detalle{font-size:13px;line-height:1.4;}
+
+.form-row{margin-bottom:12px;}
+.form-row label{display:block;font-size:12px;color:var(--text-dim);margin-bottom:6px;font-weight:600;}
+.form-row select, .form-row textarea, .form-row input{
+  width:100%;padding:10px 12px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:8px;color:var(--text);font-size:13px;
+}
+.form-row textarea{min-height:80px;resize:vertical;}
+.promesa-fields{display:none;gap:10px;grid-template-columns:1fr 1fr;}
+.promesa-fields.show{display:grid;}
+
+.empty-state{text-align:center;padding:40px 20px;color:var(--text-dim);font-size:13px;}
+.toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  background:var(--surface-2);border:1px solid var(--brand);color:var(--text);
+  padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;
+  z-index:200;display:none;box-shadow:0 10px 30px -10px rgba(0,0,0,.5);
+}
+.loading{display:flex;align-items:center;justify-content:center;padding:40px;color:var(--text-dim);font-size:13px;}
+
+@media(max-width:640px){
+  main{padding:16px;}
+  .risk-panel{flex-direction:column;text-align:center;}
+  .topbar .user span{display:none;}
+}
+</style>
+</head>
+<body>
+
+<!-- ===================== LOGIN ===================== -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="dot"></div>
+      <div>
+        <span>Cartera+</span>
+        <small>Gestión preventiva de créditos</small>
+      </div>
+    </div>
+    <div class="login-error" id="loginError"></div>
+    <div class="field">
+      <label>Usuario</label>
+      <input type="text" id="inputUsuario" placeholder="usuario" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Contraseña</label>
+      <input type="password" id="inputPassword" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn-primary" id="btnLogin">Ingresar</button>
+  </div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="app">
+  <div class="topbar">
+    <div class="brand"><div class="dot"></div><span>Cartera+</span></div>
+    <div class="user">
+      <span>Vendedor: <b id="userNombre"></b></span>
+      <button class="btn-logout" id="btnLogout">Salir</button>
+    </div>
+  </div>
+
+  <main>
+    <div class="section-title">Resumen de tu cartera</div>
+    <div class="kpi-grid" id="kpiGrid"></div>
+
+    <div class="section-title">Tasa de morosidad</div>
+    <div class="risk-panel">
+      <div class="gauge">
+        <svg width="120" height="120" viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="52" fill="none" stroke="#1c2942" stroke-width="12"/>
+          <circle id="gaugeArc" cx="60" cy="60" r="52" fill="none" stroke="#22c55e" stroke-width="12"
+                  stroke-linecap="round" stroke-dasharray="326.7" stroke-dashoffset="326.7"/>
+        </svg>
+        <div class="gauge-value" id="gaugeValue">0%</div>
+      </div>
+      <div class="info">
+        <h3>Salud de tu cartera</h3>
+        <p id="riskText">Cargando indicadores de morosidad de tus clientes asignados...</p>
+      </div>
+    </div>
+
+    <div class="section-title">Mis clientes</div>
+    <div class="filter-bar">
+      <input type="text" id="searchClient" placeholder="Buscar cliente por nombre o teléfono...">
+      <div class="chip active" data-filter="todos">Todos</div>
+      <div class="chip" data-filter="vencido">Vencidos</div>
+      <div class="chip" data-filter="al_dia">Al día</div>
+    </div>
+    <div class="client-grid" id="clientGrid">
+      <div class="loading">Cargando clientes...</div>
+    </div>
+  </main>
+</div>
+
+<!-- ===================== MODAL CLIENTE ===================== -->
+<div class="overlay" id="clientModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <h2 id="modalNombre">Cliente</h2>
+        <div class="sub" id="modalTelefono"></div>
+      </div>
+      <button class="modal-close" id="btnCloseModal">✕</button>
+    </div>
+    <div class="tabs">
+      <div class="tab active" data-tab="cuotas">Cuotas</div>
+      <div class="tab" data-tab="historial">Historial</div>
+      <div class="tab" data-tab="nueva">Nueva interacción</div>
+    </div>
+    <div class="tab-content">
+      <div class="tab-panel active" id="panel-cuotas"></div>
+      <div class="tab-panel" id="panel-historial"></div>
+      <div class="tab-panel" id="panel-nueva">
+        <div class="form-row">
+          <label>Tipo de interacción</label>
+          <select id="tipoInteraccion">
+            <option value="Llamada">Llamada</option>
+            <option value="WhatsApp">WhatsApp</option>
+            <option value="Promesa de pago">Promesa de pago</option>
+            <option value="Visita">Visita</option>
+            <option value="Observación">Observación</option>
+          </select>
+        </div>
+        <div class="form-row promesa-fields" id="promesaFields">
+          <div>
+            <label>Fecha de promesa</label>
+            <input type="date" id="fechaPromesa">
+          </div>
+          <div>
+            <label>Monto prometido</label>
+            <input type="number" id="montoPromesa" placeholder="0">
+          </div>
+        </div>
+        <div class="form-row">
+          <label>Detalle / observación</label>
+          <textarea id="detalleInteraccion" placeholder="Escribe lo conversado con el cliente..."></textarea>
+        </div>
+        <button class="btn-primary" id="btnGuardarInteraccion">Guardar interacción</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =====================================================================
+ * CONFIGURACIÓN
+ * Pega aquí la URL de tu Apps Script Web App (ver Code.gs / README)
+ * =================================================================== */
+const API_URL = "https://script.google.com/macros/s/AKfycbzowbm5xT0awDiMtQ47BNzpJ7mly47NCIXTphfRiyLL4xsAZ6XgHBQ-oXnCT-zGKbAn/exec";
+
+let session = null;      // { usuario, nombre }
+let clientesCache = [];
+let clienteActivoId = null;
+let filtroEstado = 'todos';
+
+/* ---------- Utilidades ---------- */
+async function sha256(text){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function apiPost(action, payload){
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // evita preflight CORS con Apps Script
+    body: JSON.stringify({ action, ...payload })
+  });
+  return res.json();
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 2600);
+}
+
+function fmtMoney(v){
+  const n = Number(v) || 0;
+  return 'Gs. ' + n.toLocaleString('es-PY');
+}
+
+/* ---------- LOGIN ---------- */
+document.getElementById('btnLogin').addEventListener('click', doLogin);
+document.getElementById('inputPassword').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+
+async function doLogin(){
+  const usuario = document.getElementById('inputUsuario').value.trim();
+  const password = document.getElementById('inputPassword').value;
+  const errBox = document.getElementById('loginError');
+  errBox.style.display = 'none';
+
+  if(!usuario || !password){
+    errBox.textContent = 'Completa usuario y contraseña.';
+    errBox.style.display = 'block';
+    return;
+  }
+  if(API_URL.includes('PASTE_YOUR')){
+    errBox.textContent = 'Falta configurar API_URL en el archivo. Revisa el README.';
+    errBox.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('btnLogin');
+  btn.textContent = 'Ingresando...'; btn.disabled = true;
+
+  try{
+    const passwordHash = await sha256(password);
+    const resp = await apiPost('login', { usuario, passwordHash });
+    if(!resp.ok){
+      errBox.textContent = resp.error || 'Credenciales incorrectas.';
+      errBox.style.display = 'block';
+    } else {
+      session = { usuario: resp.usuario, nombre: resp.nombre };
+      document.getElementById('userNombre').textContent = session.nombre;
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      cargarDashboard();
+      cargarClientes();
+    }
+  } catch(e){
+    errBox.textContent = 'Error de conexión con el servidor. Intenta nuevamente.';
+    errBox.style.display = 'block';
+  } finally {
+    btn.textContent = 'Ingresar'; btn.disabled = false;
+  }
+}
+
+document.getElementById('btnLogout').addEventListener('click', () => {
+  session = null;
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('inputPassword').value = '';
+});
+
+/* ---------- DASHBOARD ---------- */
+async function cargarDashboard(){
+  const resp = await apiPost('dashboard', { usuario: session.usuario });
+  if(!resp.ok){ showToast('Error cargando indicadores'); return; }
+  const k = resp.kpis;
+
+  const cards = [
+    { cls:'c-clients', label:'Clientes asignados', value:k.totalClientes },
+    { cls:'c-today', label:'Vencen hoy', value:k.cuotasVencenHoy },
+    { cls:'c-soon', label:'Vencen en 3 días', value:k.cuotasVencen3Dias },
+    { cls:'c-overdue', label:'Cuotas vencidas', value:k.cuotasVencidas },
+  ];
+  document.getElementById('kpiGrid').innerHTML = cards.map(c => `
+    <div class="kpi-card ${c.cls}">
+      <div class="label">${c.label}</div>
+      <div class="value">${c.value}</div>
+    </div>`).join('');
+
+  // Gauge de morosidad
+  const pct = Math.min(100, k.tasaMorosidad);
+  const circumference = 326.7;
+  const offset = circumference - (pct/100)*circumference;
+  const arc = document.getElementById('gaugeArc');
+  arc.setAttribute('stroke-dashoffset', offset);
+  arc.setAttribute('stroke', pct >= 20 ? '#ef4444' : pct >= 8 ? '#f5a524' : '#22c55e');
+  document.getElementById('gaugeValue').textContent = pct.toFixed(1) + '%';
+
+  const riskText = document.getElementById('riskText');
+  if(pct >= 20) riskText.textContent = `Riesgo alto: ${k.cuotasVencidas} de ${k.cuotasPendientes} cuotas pendientes están vencidas. Prioriza contacto inmediato con esos clientes.`;
+  else if(pct >= 8) riskText.textContent = `Riesgo moderado: mantén seguimiento cercano de las cuotas próximas a vencer para evitar mora.`;
+  else riskText.textContent = `Tu cartera está saludable. Sigue con el seguimiento preventivo de cuotas próximas a vencer.`;
+}
+
+/* ---------- CLIENTES ---------- */
+async function cargarClientes(){
+  const resp = await apiPost('clientes', { usuario: session.usuario });
+  if(!resp.ok){ showToast('Error cargando clientes'); return; }
+  clientesCache = resp.clientes;
+  renderClientes();
+}
+
+function renderClientes(){
+  const term = document.getElementById('searchClient').value.trim().toLowerCase();
+  let lista = clientesCache;
+  if(filtroEstado !== 'todos') lista = lista.filter(c => c.estado === filtroEstado);
+  if(term) lista = lista.filter(c => c.nombre.toLowerCase().includes(term) || String(c.telefono).includes(term));
+
+  const grid = document.getElementById('clientGrid');
+  if(lista.length === 0){
+    grid.innerHTML = '<div class="empty-state">No se encontraron clientes con ese criterio.</div>';
+    return;
+  }
+
+  grid.innerHTML = lista.map(c => `
+    <div class="client-card" onclick="abrirCliente('${c.id}')">
+      <div class="name"><span class="status-dot ${c.estado}"></span>${c.nombre}</div>
+      <div class="phone">${c.telefono || 'sin teléfono'}</div>
+      <div class="stat-row"><span>Pendientes</span><b>${c.cuotasPendientes}</b></div>
+      <div class="stat-row"><span>Vencidas</span><b>${c.cuotasVencidas}</b></div>
+    </div>`).join('');
+}
+
+document.getElementById('searchClient').addEventListener('input', renderClientes);
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    filtroEstado = chip.dataset.filter;
+    renderClientes();
+  });
+});
+
+/* ---------- MODAL CLIENTE ---------- */
+async function abrirCliente(idCliente){
+  clienteActivoId = idCliente;
+  document.getElementById('clientModal').classList.add('open');
+  document.getElementById('modalNombre').textContent = 'Cargando...';
+  document.getElementById('panel-cuotas').innerHTML = '<div class="loading">Cargando...</div>';
+  document.getElementById('panel-historial').innerHTML = '';
+
+  const resp = await apiPost('cliente', { idCliente });
+  if(!resp.ok){ showToast('No se pudo cargar el cliente'); return; }
+
+  document.getElementById('modalNombre').textContent = resp.cliente.nombre;
+  document.getElementById('modalTelefono').textContent = resp.cliente.telefono || '';
+
+  // Créditos con sus cuotas agrupadas
+  const hoy = new Date().toISOString().slice(0,10);
+  document.getElementById('panel-cuotas').innerHTML = resp.creditos.length ? resp.creditos.map(cr => {
+    const filasCuotas = cr.cuotas.length ? cr.cuotas.map(q => {
+      const vencida = q.estado !== 'pagada' && q.fecha_vencimiento < hoy;
+      const estadoLabel = q.estado === 'pagada' ? 'pagada' : (vencida ? 'vencida' : 'pendiente');
+      return `
+        <div class="cuota-row">
+          <div class="left">Cuota #${q.numero_cuota} · <b>${fmtMoney(q.monto)}</b> · vence ${q.fecha_vencimiento}</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="badge ${estadoLabel}">${estadoLabel}</span>
+            ${q.estado !== 'pagada' ? `<button class="btn-mini" onclick="marcarPagada('${q.id}')">Marcar pagada</button>` : ''}
+          </div>
+        </div>`;
+    }).join('') : '<div class="empty-state" style="padding:12px 0;">Este crédito no tiene cuotas cargadas.</div>';
+
+    return `
+      <div style="margin-bottom:18px;border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+        <div style="background:var(--surface-2);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-weight:700;font-size:13px;">Crédito ${cr.id} · ${fmtMoney(cr.monto_total)}</div>
+            <div style="font-size:11px;color:var(--text-dim);">Otorgado ${cr.fecha_otorgamiento} · ${cr.cantidad_cuotas} cuotas</div>
+          </div>
+          <span class="badge ${cr.estado === 'activo' ? 'pendiente' : 'pagada'}">${cr.estado}</span>
+        </div>
+        <div style="padding:4px 14px;">${filasCuotas}</div>
+      </div>`;
+  }).join('') : '<div class="empty-state">Este cliente no tiene créditos registrados.</div>';
+
+  // Historial
+  document.getElementById('panel-historial').innerHTML = resp.interacciones.length ? resp.interacciones.map(i => `
+    <div class="interaccion-item">
+      <div class="meta"><span class="tipo">${i.tipo}</span><span>${i.fecha}</span></div>
+      <div class="detalle">${i.detalle || '(sin detalle)'}</div>
+      ${i.tipo === 'Promesa de pago' ? `<div class="detalle" style="color:var(--warn);margin-top:4px;">Promesa: ${fmtMoney(i.monto_promesa)} para el ${i.fecha_promesa}</div>` : ''}
+    </div>`).join('') : '<div class="empty-state">Aún no hay interacciones registradas con este cliente.</div>';
+}
+
+async function marcarPagada(idCuota){
+  const resp = await apiPost('marcarPagada', { idCuota });
+  if(resp.ok){
+    showToast('Cuota marcada como pagada');
+    abrirCliente(clienteActivoId);
+    cargarDashboard();
+    cargarClientes();
+  } else {
+    showToast('No se pudo actualizar la cuota');
+  }
+}
+
+document.getElementById('btnCloseModal').addEventListener('click', () => {
+  document.getElementById('clientModal').classList.remove('open');
+});
+document.getElementById('clientModal').addEventListener('click', e => {
+  if(e.target.id === 'clientModal') document.getElementById('clientModal').classList.remove('open');
+});
+
+/* Tabs del modal */
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+/* Mostrar campos de promesa solo si aplica */
+document.getElementById('tipoInteraccion').addEventListener('change', e => {
+  document.getElementById('promesaFields').classList.toggle('show', e.target.value === 'Promesa de pago');
+});
+
+/* Guardar nueva interacción */
+document.getElementById('btnGuardarInteraccion').addEventListener('click', async () => {
+  const tipo = document.getElementById('tipoInteraccion').value;
+  const detalle = document.getElementById('detalleInteraccion').value.trim();
+  const fechaPromesa = document.getElementById('fechaPromesa').value;
+  const montoPromesa = document.getElementById('montoPromesa').value;
+
+  if(!detalle){ showToast('Escribe un detalle antes de guardar'); return; }
+
+  const btn = document.getElementById('btnGuardarInteraccion');
+  btn.textContent = 'Guardando...'; btn.disabled = true;
+
+  const resp = await apiPost('addInteraccion', {
+    idCliente: clienteActivoId, usuario: session.usuario, tipo, detalle, fechaPromesa, montoPromesa
+  });
+
+  btn.textContent = 'Guardar interacción'; btn.disabled = false;
+
+  if(resp.ok){
+    showToast('Interacción guardada');
+    document.getElementById('detalleInteraccion').value = '';
+    document.getElementById('fechaPromesa').value = '';
+    document.getElementById('montoPromesa').value = '';
+    abrirCliente(clienteActivoId);
+    document.querySelector('.tab[data-tab="historial"]').click();
+  } else {
+    showToast('Error al guardar la interacción');
+  }
+});
+</script>
+</body>
+</html>
