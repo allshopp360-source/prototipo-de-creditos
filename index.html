@@ -231,6 +231,24 @@ main{padding:22px 24px 60px;max-width:1320px;margin:0 auto;}
 .tramo-badge.tramo-tardia{background:rgba(225,75,79,.16);color:var(--danger-deep);}
 .tramo-badge.tramo-sin-datos{background:var(--surface-2);color:var(--text-dim);}
 
+/* ---------- Seguimiento: contacto y promesas de pago ---------- */
+.row-sub2{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+.contact-badge,.promise-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:10.5px;font-weight:700;white-space:nowrap;}
+.contact-badge::before,.promise-badge::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0;}
+.contact-badge.contact-ok{background:rgba(0,168,111,.12);color:var(--ok);}
+.contact-badge.contact-warn{background:rgba(224,162,51,.14);color:#a06a17;}
+.contact-badge.contact-danger{background:rgba(225,75,79,.16);color:var(--danger-deep);}
+.contact-badge.contact-none{background:var(--surface-2);color:var(--text-dim);}
+.promise-badge.promise-pendiente{background:var(--brand-soft);color:var(--brand-dark);}
+.promise-badge.promise-vence_hoy{background:rgba(224,162,51,.18);color:var(--warn);}
+.promise-badge.promise-cumplida{background:rgba(0,168,111,.12);color:var(--ok);}
+.promise-badge.promise-incumplida{background:rgba(225,75,79,.16);color:var(--danger-deep);}
+.kpi-card.c-promesa{border-left-color:var(--danger);}
+.kpi-card.c-promesa .value{color:var(--danger-deep);}
+.kpi-card.c-contacto{border-left-color:var(--warn);}
+.kpi-card.c-contacto .value{color:var(--warn);}
+.modal-seguimiento{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+
 /* ---------- Botón de acción rápida: Cobranza por WhatsApp ---------- */
 .btn-whatsapp{
   display:inline-flex;align-items:center;gap:6px;
@@ -401,10 +419,13 @@ table.vendor-table{width:100%;border-collapse:collapse;}
               <div class="chip active" data-filter="todos">Todos</div>
               <div class="chip" data-filter="vencido">Vencidos</div>
               <div class="chip" data-filter="al_dia">Al día</div>
+              <div class="chip" data-filter="sin_contacto">Sin contacto</div>
+              <div class="chip" data-filter="promesa_incumplida">Promesas incumplidas</div>
             </div>
             <select class="sort-select" id="ordenSelect">
               <option value="antiguedad">Mora más antigua</option>
               <option value="monto">Mayor monto vencido</option>
+              <option value="contacto">Más días sin contacto</option>
               <option value="nombre">Nombre (A–Z)</option>
             </select>
           </div>
@@ -469,6 +490,7 @@ table.vendor-table{width:100%;border-collapse:collapse;}
           <input type="text" id="searchAdminClient" placeholder="Buscar cliente por nombre o teléfono...">
           <select class="sort-select" id="adminOrdenSelect">
             <option value="antiguedad">Mora más antigua</option>
+            <option value="contacto">Más días sin contacto</option>
             <option value="monto">Mayor monto vencido</option>
             <option value="nombre">Nombre (A–Z)</option>
           </select>
@@ -486,6 +508,7 @@ table.vendor-table{width:100%;border-collapse:collapse;}
       <div>
         <h2 id="modalNombre">Cliente</h2>
         <div class="sub" id="modalTelefono"></div>
+        <div class="modal-seguimiento" id="modalSeguimiento"></div>
       </div>
       <div class="modal-actions">
         <button class="btn-whatsapp" id="btnWhatsappModal" style="display:none;" onclick="enviarCobranzaWhatsAppModal()" title="Enviar recordatorio de cobranza por WhatsApp">
@@ -556,6 +579,11 @@ const API_URL = "https://script.google.com/macros/s/AKfycbzowbm5xT0awDiMtQ47BNzp
  *   montoVencido           -> Gs. en mora
  *   montoPendiente         -> Gs. total pendiente (vencido + al día)
  *   vendedor                -> nombre del vendedor (usado en panel admin)
+ *   diasSinContacto         -> días desde la última interacción (null = nunca)
+ *   fechaUltimoContacto     -> 'YYYY-MM-DD' de la última interacción
+ *   promesa                 -> { estado: 'pendiente'|'vence_hoy'|'cumplida'|'incumplida',
+ *                                 fecha, monto } de la promesa de pago más
+ *                                 reciente del cliente, o null si nunca prometió
  * Ver archivo adjunto "negofin-admin-backend.gs" para el código de
  * backend sugerido que provee estos campos y las acciones de admin.
  * =================================================================== */
@@ -651,6 +679,34 @@ function fmtFechaDDMMYYYY(fechaISO){
   if(partes.length !== 3) return null;
   const [y, m, d] = partes;
   return `${d}/${m}/${y}`;
+}
+
+/* ---------------------------------------------------------------------
+ * SEGUIMIENTO: badges de "días sin contacto" y estado de la promesa
+ * de pago más reciente. DIAS_SIN_CONTACTO_ALERTA debe coincidir con el
+ * mismo umbral del backend (Code.gs) para que los KPIs y los filtros
+ * cuenten exactamente lo mismo.
+ * ------------------------------------------------------------------- */
+const DIAS_SIN_CONTACTO_ALERTA = 5;
+
+function contactoInfoDe(dias){
+  if(dias == null) return { clase:'contact-none', label:'Nunca contactado' };
+  if(dias === 0) return { clase:'contact-ok', label:'Contactado hoy' };
+  if(dias < DIAS_SIN_CONTACTO_ALERTA) return { clase:'contact-warn', label:`${dias} día${dias===1?'':'s'} sin contacto` };
+  return { clase:'contact-danger', label:`${dias} días sin contacto` };
+}
+
+const PROMESA_LABELS = {
+  pendiente: p => `Promesa: ${fmtFechaDDMMYYYY(p.fecha) || p.fecha}`,
+  vence_hoy: () => 'Promesa vence hoy',
+  cumplida: () => 'Promesa cumplida',
+  incumplida: p => `Promesa incumplida (${fmtFechaDDMMYYYY(p.fecha) || p.fecha})`
+};
+
+function promesaInfoDe(promesa){
+  if(!promesa || !promesa.estado) return null;
+  const fn = PROMESA_LABELS[promesa.estado];
+  return { clase: 'promise-' + promesa.estado, label: fn ? fn(promesa) : promesa.estado };
 }
 
 /* Tramo de mora (DPD bucket) para el badge de riesgo de la tarjeta */
@@ -869,6 +925,8 @@ async function cargarDashboard(){
     { cls:'c-today', label:'Vencen hoy', value: k ? k.cuotasVencenHoy : '—' },
     { cls:'c-soon', label:'Vencen en 3 días', value: k ? k.cuotasVencen3Dias : '—' },
     { cls:'c-overdue', label:'Cuotas vencidas', value: agg.cuotasVencidas },
+    { cls:'c-promesa', label:'Promesas incumplidas', value: k ? k.promesasIncumplidas : '—' },
+    { cls:'c-contacto', label:'Sin contacto crítico', value: k ? k.sinContactoCritico : '—' },
   ];
   document.getElementById('kpiGrid').innerHTML = cards.map(c => `
     <div class="kpi-card ${c.cls}">
@@ -900,6 +958,12 @@ function ordenarLista(lista, criterio){
     conDias.sort((a,b) => a.c.nombre.localeCompare(b.c.nombre));
   } else if(criterio === 'monto'){
     conDias.sort((a,b) => Number(b.c.montoVencido || 0) - Number(a.c.montoVencido || 0) || (b.dias ?? -1) - (a.dias ?? -1));
+  } else if(criterio === 'contacto'){
+    conDias.sort((a,b) => {
+      const da = a.c.diasSinContacto == null ? Infinity : a.c.diasSinContacto;
+      const db = b.c.diasSinContacto == null ? Infinity : b.c.diasSinContacto;
+      return db - da;
+    });
   } else { // antiguedad: mora más vieja primero, sin fecha al final
     conDias.sort((a,b) => {
       if(a.dias == null && b.dias == null) return (b.c.cuotasVencidas||0) - (a.c.cuotasVencidas||0);
@@ -914,7 +978,13 @@ function ordenarLista(lista, criterio){
 function renderClientes(){
   const term = document.getElementById('searchClient').value.trim().toLowerCase();
   let lista = clientesCache;
-  if(filtroEstado !== 'todos') lista = lista.filter(c => c.estado === filtroEstado);
+  if(filtroEstado === 'sin_contacto'){
+    lista = lista.filter(c => c.cuotasVencidas > 0 && (c.diasSinContacto == null || c.diasSinContacto >= DIAS_SIN_CONTACTO_ALERTA));
+  } else if(filtroEstado === 'promesa_incumplida'){
+    lista = lista.filter(c => c.promesa && c.promesa.estado === 'incumplida');
+  } else if(filtroEstado !== 'todos'){
+    lista = lista.filter(c => c.estado === filtroEstado);
+  }
   if(term) lista = lista.filter(c => c.nombre.toLowerCase().includes(term) || String(c.telefono||'').includes(term));
   lista = ordenarLista(lista, ordenActual);
 
@@ -943,6 +1013,14 @@ function renderClientRows(container, lista, opts){
       rankBadge = `<div class="row-rank ${rankVencidos<=3?'hot':''}">${rankVencidos}</div>`;
     }
     const vendorTag = (opts.showVendedor && c.vendedor) ? `<span class="row-vendor-tag">${escapeHtml(c.vendedor)}</span>` : '';
+    const contacto = contactoInfoDe(c.diasSinContacto);
+    const promesaInfo = promesaInfoDe(c.promesa);
+    const seguimientoRow = (dias != null && dias > 0)
+      ? `<div class="row-sub2">
+          <span class="contact-badge ${contacto.clase}">${contacto.label}</span>
+          ${promesaInfo ? `<span class="promise-badge ${promesaInfo.clase}">${promesaInfo.label}</span>` : ''}
+        </div>`
+      : '';
     const montoStat = (typeof c.montoVencido === 'number')
       ? `<div class="stat"><span class="stat-label">Monto vencido</span><b class="mono danger-text">${fmtMoney(c.montoVencido)}</b></div>` : '';
     const saldoStat = (typeof c.montoPendiente === 'number')
@@ -962,6 +1040,7 @@ function renderClientRows(container, lista, opts){
           <div>
             <div class="row-name"><span class="status-dot ${c.estado}"></span>${escapeHtml(c.nombre)}<span class="tramo-badge ${tramo.clase}" style="margin-left:8px;">${tramo.label}</span></div>
             <div class="row-sub">${c.telefono ? escapeHtml(c.telefono) : 'Sin teléfono'} ${vendorTag}</div>
+            ${seguimientoRow}
           </div>
         </div>
         <div class="row-stats">
@@ -1040,14 +1119,18 @@ function renderAdminResumen(){
     a.cuotasPendientes += v.cuotasPendientes || 0;
     a.montoVencido += Number(v.montoVencido || 0);
     a.montoPendiente += Number(v.montoPendiente || 0);
+    a.promesasIncumplidas += Number(v.promesasIncumplidas || 0);
+    a.sinContactoCritico += Number(v.sinContactoCritico || 0);
     return a;
-  }, { totalClientes:0, cuotasVencidas:0, cuotasPendientes:0, montoVencido:0, montoPendiente:0 });
+  }, { totalClientes:0, cuotasVencidas:0, cuotasPendientes:0, montoVencido:0, montoPendiente:0, promesasIncumplidas:0, sinContactoCritico:0 });
 
   const cardsData = [
     { cls:'c-clients', label:'Clientes totales', value: totales.totalClientes },
     { cls:'c-overdue', label:'Cuotas vencidas', value: totales.cuotasVencidas },
     { cls:'c-today', label:'Monto vencido', value: fmtMoney(totales.montoVencido) },
     { cls:'c-soon', label:'Vendedores activos', value: adminResumenCache.length },
+    { cls:'c-promesa', label:'Promesas incumplidas', value: totales.promesasIncumplidas },
+    { cls:'c-contacto', label:'Sin contacto crítico', value: totales.sinContactoCritico },
   ];
   document.getElementById('adminKpiGrid').innerHTML = cardsData.map(c => `
     <div class="kpi-card ${c.cls}"><div class="label">${c.label}</div><div class="value">${c.value}</div></div>`).join('');
@@ -1072,7 +1155,7 @@ function renderAdminResumen(){
       <table class="vendor-table">
         <thead>
           <tr>
-            <th>Vendedor</th><th>Clientes</th><th>Cuotas vencidas</th><th>Monto vencido</th><th>Morosidad</th><th></th>
+            <th>Vendedor</th><th>Clientes</th><th>Cuotas vencidas</th><th>Monto vencido</th><th>Morosidad</th><th>Promesas incump.</th><th>Sin contacto</th><th></th>
           </tr>
         </thead>
         <tbody>
@@ -1088,6 +1171,8 @@ function renderAdminResumen(){
                   <b class="mono" style="color:${colorParaPct(f.calc.pct)};">${f.calc.pct.toFixed(1)}%</b>
                 </div>
               </td>
+              <td class="mono" style="color:${(f.v.promesasIncumplidas||0) > 0 ? 'var(--danger-deep)' : 'inherit'};">${f.v.promesasIncumplidas || 0}</td>
+              <td class="mono" style="color:${(f.v.sinContactoCritico||0) > 0 ? 'var(--warn)' : 'inherit'};">${f.v.sinContactoCritico || 0}</td>
               <td><button class="btn-ver" onclick="event.stopPropagation();verCarteraVendedor('${f.v.usuario}')">Ver cartera</button></td>
             </tr>`).join('')}
         </tbody>
@@ -1147,6 +1232,17 @@ async function abrirCliente(idCliente){
 
   document.getElementById('modalNombre').textContent = resp.cliente.nombre;
   document.getElementById('modalTelefono').textContent = resp.cliente.telefono || '';
+
+  const seguimientoBox = document.getElementById('modalSeguimiento');
+  if(resp.seguimiento){
+    const contacto = contactoInfoDe(resp.seguimiento.diasSinContacto);
+    const promesaInfo = promesaInfoDe(resp.seguimiento.promesa);
+    seguimientoBox.innerHTML = `
+      <span class="contact-badge ${contacto.clase}">${contacto.label}</span>
+      ${promesaInfo ? `<span class="promise-badge ${promesaInfo.clase}">${promesaInfo.label}</span>` : ''}`;
+  } else {
+    seguimientoBox.innerHTML = '';
+  }
 
   // Créditos con sus cuotas agrupadas
   const hoy = new Date().toISOString().slice(0,10);
